@@ -1,4 +1,4 @@
-import { NODE_W, NODE_H, COUPLE_GAP, H_GAP, V_GAP, PADDING } from "../constants";
+import { NODE_W, NODE_H, COUPLE_GAP, H_GAP, V_GAP, PADDING } from "./constants";
 
 export function coupleWidth(node) {
   return node.members.length * NODE_W + (node.members.length > 1 ? COUPLE_GAP : 0);

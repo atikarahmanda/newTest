@@ -1,7 +1,7 @@
-import { buildRelMaps } from "../utils/treeBuilder";
+import { buildRelMaps } from "../backend/treeBuilder";
 import { Icons } from "./Icons";
 
-export default function PersonDetail({ person, persons, rels, onEdit, onDelete, onClickPerson, onFocus }) {
+export default function PersonDetail({ person, persons, rels, onEdit, onDelete, onClickPerson, onFocus, onManageRels, role }) {
   if (!person) return null;
 
   const { spouseMap, childrenOfParent, parentsOfChild } = buildRelMaps(persons, rels);
@@ -139,24 +139,36 @@ export default function PersonDetail({ person, persons, rels, onEdit, onDelete, 
           Lihat Ranji
         </button>
 
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => onEdit(person)}
-            className="flex-1 py-2.5 rounded-xl text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
-          >
-            {Icons.edit}
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(person)}
-            className="flex-1 py-2.5 rounded-xl text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
-          >
-            {Icons.trash}
-            Hapus
-          </button>
-        </div>
+        {role === "admin" && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => onManageRels(person)}
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center justify-center gap-1.5"
+            >
+              {Icons.link}
+              Kelola Hubungan
+            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onEdit(person)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
+              >
+                {Icons.edit}
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(person)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
+              >
+                {Icons.trash}
+                Hapus
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

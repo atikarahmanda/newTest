@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { NODE_W, NODE_H } from "../constants";
-import { buildFamilyNodes } from "../utils/treeBuilder";
-import { computeFullLayout } from "../utils/treeLayout";
+import { NODE_W, NODE_H } from "../backend/constants";
+import { buildFamilyNodes } from "../backend/treeBuilder";
+import { computeFullLayout } from "../backend/treeLayout";
 import FamilyTreeSVG from "./FamilyTreeSVG";
 import { Icons } from "./Icons";
 

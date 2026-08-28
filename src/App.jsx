@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 
-import { apiGet, apiPost } from "./api";
-import { buildRelMaps } from "./utils/treeBuilder";
+import { apiGet, apiPost } from "./backend/api";
+import { buildRelMaps } from "./backend/treeBuilder";
 
 import Modal from "./components/Modal";
 import PersonForm from "./components/PersonForm";
@@ -11,6 +11,8 @@ import MembersList from "./components/MembersList";
 import ConfirmDialog from "./components/ConfirmDialog";
 import { Icons } from "./components/Icons";
 import RanjiSelector from "./components/RanjiSelector";
+import AdminPinForm from "./components/AdminPinForm";
+import RelationshipManager from "./components/RelationshipManager";
 
 export default function App() {
   const [persons, setPersons] = useState([]);
@@ -24,12 +26,27 @@ export default function App() {
   // Focused ranji view (null = full tree)
   const [focusPersonId, setFocusPersonId] = useState(null);
 
+  // Role system
+  const [role, setRole] = useState("viewer"); // "viewer" | "admin"
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+
+  const handleAdminLogin = () => {
+    setRole("admin");
+    setShowAdminLogin(false);
+  };
+
+  const handleAdminLogout = () => {
+    setRole("viewer");
+    setShowSettings(false);
+  };
+
   // Modals
   const [showAddPerson, setShowAddPerson] = useState(false);
   const [showEditPerson, setShowEditPerson] = useState(null);
   const [showDetail, setShowDetail] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showManageRels, setShowManageRels] = useState(null); // person object
 
   // ==========================================================
   // FETCH DATA
@@ -200,6 +217,50 @@ export default function App() {
     }
   };
 
+  // ==========================================================
+  // RELATIONSHIP MANAGEMENT
+  // ==========================================================
+
+  const handleAddRel = async (form) => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const result = await apiPost({ action: "createRelationship", ...form });
+
+      if (result.success) {
+        await fetchData();
+      } else {
+        setError(result.message || "Gagal menyimpan hubungan.");
+      }
+    } catch (err) {
+      console.error("handleAddRel error:", err);
+      setError(`Gagal menyimpan hubungan: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteRel = async (relId) => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const result = await apiPost({ action: "deleteRelationship", id: relId });
+
+      if (result.success) {
+        await fetchData();
+      } else {
+        setError(result.message || "Gagal menghapus hubungan.");
+      }
+    } catch (err) {
+      console.error("handleDeleteRel error:", err);
+      setError(`Gagal menghapus hubungan: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleClickPerson = (person) => setShowDetail(person);
 
   const handleSelectRanji = (person) => setFocusPersonId(person.id);
@@ -254,7 +315,7 @@ export default function App() {
   // ==========================================================
 
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
+    <div className="h-screen flex flex-col bg-white overflow-hidden relative">
       {/* HEADER */}
       <header className="shrink-0 border-b border-slate-100 bg-white/95 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 h-14">
@@ -289,6 +350,30 @@ export default function App() {
 
           {/* Actions */}
           <div className="flex items-center gap-1">
+            {role === "admin" ? (
+              <>
+                <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg select-none">
+                  Admin
+                </span>
+                <button
+                  type="button"
+                  onClick={handleAdminLogout}
+                  title="Keluar dari Admin"
+                  className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {Icons.lockOpen}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAdminLogin(true)}
+                title="Admin Login"
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {Icons.lock}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowSettings(true)}
@@ -373,21 +458,24 @@ export default function App() {
               onClickPerson={handleClickPerson}
               onEdit={(person) => setShowEditPerson(person)}
               onDelete={(person) => setShowDeleteConfirm(person)}
+              role={role}
             />
           </div>
         )}
 
-        {/* FAB — tambah anggota */}
-        <div className="absolute bottom-5 right-5 z-10">
-          <button
-            type="button"
-            onClick={() => setShowAddPerson(true)}
-            className="w-11 h-11 rounded-2xl bg-blue-600 shadow-lg shadow-blue-600/30 flex items-center justify-center text-white hover:bg-blue-700 transition-colors"
-            title="Tambah anggota"
-          >
-            {Icons.plus}
-          </button>
-        </div>
+        {/* FAB — tambah anggota (admin only) */}
+        {role === "admin" && (
+          <div className="absolute bottom-5 right-5 z-10">
+            <button
+              type="button"
+              onClick={() => setShowAddPerson(true)}
+              className="w-11 h-11 rounded-2xl bg-blue-600 shadow-lg shadow-blue-600/30 flex items-center justify-center text-white hover:bg-blue-700 transition-colors"
+              title="Tambah anggota"
+            >
+              {Icons.plus}
+            </button>
+          </div>
+        )}
       </main>
 
       {/* ADD PERSON */}
@@ -426,6 +514,7 @@ export default function App() {
           person={showDetail}
           persons={persons}
           rels={rels}
+          role={role}
           onEdit={(person) => {
             setShowDetail(null);
             setShowEditPerson(person);
@@ -433,6 +522,10 @@ export default function App() {
           onDelete={(person) => {
             setShowDetail(null);
             setShowDeleteConfirm(person);
+          }}
+          onManageRels={(person) => {
+            setShowDetail(null);
+            setShowManageRels(person);
           }}
           onClickPerson={handleClickPerson}
           onFocus={handleFocusPerson}
@@ -459,6 +552,36 @@ export default function App() {
       {/* SETTINGS */}
       <Modal open={showSettings} onClose={() => setShowSettings(false)} title="Pengaturan">
         <div className="space-y-4">
+          {/* Role status */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Role</p>
+              <p className={`text-sm font-semibold mt-0.5 ${role === "admin" ? "text-emerald-700" : "text-slate-600"}`}>
+                {role === "admin" ? "Admin" : "Viewer"}
+              </p>
+            </div>
+            {role === "admin" ? (
+              <button
+                type="button"
+                onClick={handleAdminLogout}
+                className="text-xs font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Logout Admin
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSettings(false);
+                  setShowAdminLogin(true);
+                }}
+                className="text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Admin Login
+              </button>
+            )}
+          </div>
+
           <div>
             <p className="text-xs font-medium text-slate-500 mb-1">Data</p>
             <p className="text-sm text-slate-700">
@@ -479,6 +602,41 @@ export default function App() {
           </button>
         </div>
       </Modal>
+
+      {/* MANAGE RELATIONSHIPS */}
+      <Modal
+        open={!!showManageRels}
+        onClose={() => setShowManageRels(null)}
+        title={showManageRels ? `Hubungan: ${showManageRels.name}` : "Kelola Hubungan"}
+        wide
+      >
+        <RelationshipManager
+          person={showManageRels}
+          persons={persons}
+          rels={rels}
+          onAdd={handleAddRel}
+          onDelete={handleDeleteRel}
+          saving={saving}
+        />
+      </Modal>
+
+      {/* ADMIN LOGIN */}
+      <Modal
+        open={showAdminLogin}
+        onClose={() => setShowAdminLogin(false)}
+        title="Admin Login"
+      >
+        <AdminPinForm
+          onSuccess={handleAdminLogin}
+          onCancel={() => setShowAdminLogin(false)}
+        />
+      </Modal>
+
+      {/* WATERMARK */}
+      <p className="fixed bottom-5 left-20 text-[10px] text-slate-300 select-none pointer-events-none z-50">
+        More details, 
+        @atikarestirhmd
+        </p>
     </div>
   );
 }

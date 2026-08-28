@@ -1,4 +1,4 @@
-import { NODE_W, NODE_H, V_GAP } from "../constants";
+import { NODE_W, NODE_H, V_GAP } from "./constants";
 import { coupleWidth } from "./treeLayout";
 
 export function getConnectorPaths(rootNodes, positions) {

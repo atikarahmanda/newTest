@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { NODE_W, NODE_H } from "../constants";
-import { getConnectorPaths } from "../utils/connectors";
+import { NODE_W, NODE_H } from "../backend/constants";
+import { getConnectorPaths } from "../backend/connectors";
 
 export default function FamilyTreeSVG({
   rootNodes,

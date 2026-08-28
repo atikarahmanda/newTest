@@ -1,10 +1,10 @@
-import { buildRelMaps } from "../utils/treeBuilder";
+import { buildRelMaps } from "../backend/treeBuilder";
 import { Icons } from "./Icons";
 
-export default function MembersList({ persons, rels, search, onClickPerson, onEdit, onDelete }) {
-  const filtered = persons.filter((person) =>
-    person.name.toLowerCase().includes(search.toLowerCase())
-  );
+export default function MembersList({ persons, rels, search, onClickPerson, onEdit, onDelete, role }) {
+  const filtered = persons
+    .filter((person) => person.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name, "id"));
 
   const { spouseMap, childrenOfParent } = buildRelMaps(persons, rels);
 
@@ -61,25 +61,27 @@ export default function MembersList({ persons, rels, search, onClickPerson, onEd
               </p>
             </div>
 
-            <div
-              className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={() => onEdit(person)}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            {role === "admin" && (
+              <div
+                className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
               >
-                {Icons.edit}
-              </button>
-              <button
-                type="button"
-                onClick={() => onDelete(person)}
-                className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
-              >
-                {Icons.trash}
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => onEdit(person)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {Icons.edit}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(person)}
+                  className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                >
+                  {Icons.trash}
+                </button>
+              </div>
+            )}
           </div>
         );
       })}

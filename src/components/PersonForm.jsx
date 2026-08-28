@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { buildRelMaps } from "../utils/treeBuilder";
+import { buildRelMaps } from "../backend/treeBuilder";
 
 export default function PersonForm({ person, onSave, onCancel, saving, persons = [], rels = [] }) {
   const isNew = !person;

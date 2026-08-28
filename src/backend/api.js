@@ -23,7 +23,6 @@ export async function apiGet(params = {}) {
   }
 }
 
-
 export async function apiPost(body = {}) {
   /*
    * PENTING: Content-Type text/plain menghindari CORS preflight OPTIONS.
