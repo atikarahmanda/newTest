@@ -1,12 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 
-import { DEFAULT_API_URL, normalizeApiUrl, apiGet, apiPost } from "./api";
-import { SAMPLE_PERSONS, SAMPLE_RELS } from "./data/sampleData";
+import { apiGet, apiPost } from "./api";
 
-import SetupScreen from "./components/SetupScreen";
 import Modal from "./components/Modal";
 import PersonForm from "./components/PersonForm";
-import RelationshipForm from "./components/RelationshipForm";
 import PersonDetail from "./components/PersonDetail";
 import FamilyTreeView from "./components/FamilyTreeView";
 import MembersList from "./components/MembersList";
@@ -14,8 +11,6 @@ import ConfirmDialog from "./components/ConfirmDialog";
 import { Icons } from "./components/Icons";
 
 export default function App() {
-  const [mode, setMode] = useState(null);
-  const [apiUrl, setApiUrl] = useState("");
   const [persons, setPersons] = useState([]);
   const [rels, setRels] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -29,44 +24,20 @@ export default function App() {
   // Modals
   const [showAddPerson, setShowAddPerson] = useState(false);
   const [showEditPerson, setShowEditPerson] = useState(null);
-  const [showAddRel, setShowAddRel] = useState(false);
   const [showDetail, setShowDetail] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Load saved API URL
-  useEffect(() => {
-    (async () => {
-      try {
-        if (window.storage && typeof window.storage.get === "function") {
-          const result = await window.storage.get("family-tree-api-url");
-          if (result && result.value) {
-            setApiUrl(normalizeApiUrl(result.value));
-            setMode("connected");
-            return;
-          }
-        }
-      } catch {
-        // Ignore storage error
-      }
-      setApiUrl(DEFAULT_API_URL);
-    })();
-  }, []);
+  // ==========================================================
+  // FETCH DATA
+  // ==========================================================
 
   const fetchData = useCallback(async () => {
-    if (mode === "demo") {
-      setPersons(SAMPLE_PERSONS);
-      setRels(SAMPLE_RELS);
-      return;
-    }
-
-    if (mode !== "connected" || !apiUrl) return;
-
     setLoading(true);
     setError(null);
 
     try {
-      const result = await apiGet(apiUrl, { action: "getAll" });
+      const result = await apiGet({ action: "getAll" });
 
       if (result.success) {
         setPersons(result.data?.persons || []);
@@ -76,58 +47,83 @@ export default function App() {
       }
     } catch (err) {
       console.error("fetchData error:", err);
-      setError(`Gagal terhubung ke Google Apps Script: ${err.message}`);
+      setError(`Gagal terhubung ke server: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  }, [mode, apiUrl]);
+  }, []);
 
   useEffect(() => {
-    if (mode) fetchData();
-  }, [mode, fetchData]);
+    fetchData();
+  }, [fetchData]);
 
-  const handleConnect = async (url) => {
-    const cleanUrl = normalizeApiUrl(url);
-
-    if (!cleanUrl) {
-      setError("URL Google Apps Script tidak valid.");
-      return;
-    }
-
-    setApiUrl(cleanUrl);
-    setMode("connected");
-
-    try {
-      if (window.storage && typeof window.storage.set === "function") {
-        await window.storage.set("family-tree-api-url", cleanUrl);
-      }
-    } catch {
-      // Ignore storage error
-    }
-  };
-
-  const handleDemo = () => setMode("demo");
+  // ==========================================================
+  // SAVE PERSON (with optional relationship)
+  // ==========================================================
 
   const handleSavePerson = async (form) => {
     setSaving(true);
     setError(null);
 
     try {
-      if (mode === "demo") {
-        const id = "P" + String(persons.length + 1).padStart(3, "0");
-        setPersons((current) => [...current, { id, ...form }]);
-        setShowAddPerson(false);
+      // Step 1: create the person
+      const createResult = await apiPost({
+        action: "createPerson",
+        name: form.name,
+        gender: form.gender,
+        birthDate: form.birthDate,
+        photoUrl: form.photoUrl,
+        notes: form.notes,
+      });
+
+      if (!createResult.success) {
+        setError(createResult.message || "Gagal menyimpan anggota.");
         return;
       }
 
-      const result = await apiPost(apiUrl, { action: "createPerson", ...form });
+      // Step 2: create relationship if the user chose one
+      if (form.relType !== "none") {
+        // Try to get the new ID from the createPerson response first
+        let newId = createResult.data?.id ?? createResult.id ?? null;
 
-      if (result.success) {
-        await fetchData();
-        setShowAddPerson(false);
-      } else {
-        setError(result.message || "Gagal menyimpan anggota.");
+        // Fallback: fetch all and find the person that wasn't there before
+        if (!newId) {
+          const prevIds = new Set(persons.map((p) => p.id));
+          const allResult = await apiGet({ action: "getAll" });
+
+          if (allResult.success) {
+            const fresh = allResult.data?.persons || [];
+            newId = fresh.find((p) => !prevIds.has(p.id))?.id ?? null;
+          }
+        }
+
+        if (newId) {
+          if (form.relType === "child") {
+            for (const parentId of form.parentIds ?? []) {
+              await apiPost({
+                action: "createRelationship",
+                personId: parentId,
+                relatedPersonId: newId,
+                type: "parent",
+              });
+            }
+          } else if (form.relType === "spouse") {
+            await apiPost({
+              action: "createRelationship",
+              personId: newId,
+              relatedPersonId: form.spouseId,
+              type: "spouse",
+            });
+          }
+        } else {
+          setError(
+            "Anggota ditambahkan, tapi hubungan gagal dibuat karena ID tidak ditemukan dari response API."
+          );
+        }
       }
+
+      await fetchData();
+      setShowAddPerson(false);
     } catch (err) {
       console.error("handleSavePerson error:", err);
       setError(`Gagal menyimpan anggota: ${err.message}`);
@@ -136,6 +132,10 @@ export default function App() {
     }
   };
 
+  // ==========================================================
+  // UPDATE PERSON
+  // ==========================================================
+
   const handleUpdatePerson = async (form) => {
     if (!showEditPerson) return;
 
@@ -143,25 +143,14 @@ export default function App() {
     setError(null);
 
     try {
-      if (mode === "demo") {
-        setPersons((current) =>
-          current.map((person) =>
-            person.id === showEditPerson.id ? { ...person, ...form } : person
-          )
-        );
-
-        if (showDetail?.id === showEditPerson.id) {
-          setShowDetail({ ...showDetail, ...form });
-        }
-
-        setShowEditPerson(null);
-        return;
-      }
-
-      const result = await apiPost(apiUrl, {
+      const result = await apiPost({
         action: "updatePerson",
         id: showEditPerson.id,
-        ...form,
+        name: form.name,
+        gender: form.gender,
+        birthDate: form.birthDate,
+        photoUrl: form.photoUrl,
+        notes: form.notes,
       });
 
       if (result.success) {
@@ -178,6 +167,10 @@ export default function App() {
     }
   };
 
+  // ==========================================================
+  // DELETE PERSON
+  // ==========================================================
+
   const handleDeletePerson = async () => {
     const person = showDeleteConfirm;
     if (!person) return;
@@ -186,20 +179,7 @@ export default function App() {
     setError(null);
 
     try {
-      if (mode === "demo") {
-        setPersons((current) => current.filter((p) => p.id !== person.id));
-        setRels((current) =>
-          current.filter(
-            (relation) =>
-              relation.personId !== person.id && relation.relatedPersonId !== person.id
-          )
-        );
-        setShowDeleteConfirm(null);
-        setShowDetail(null);
-        return;
-      }
-
-      const result = await apiPost(apiUrl, { action: "deletePerson", id: person.id });
+      const result = await apiPost({ action: "deletePerson", id: person.id });
 
       if (result.success) {
         await fetchData();
@@ -216,40 +196,16 @@ export default function App() {
     }
   };
 
-  const handleSaveRel = async (form) => {
-    setSaving(true);
-    setError(null);
-
-    try {
-      if (mode === "demo") {
-        const id = "R" + String(rels.length + 1).padStart(3, "0");
-        setRels((current) => [...current, { id, ...form }]);
-        setShowAddRel(false);
-        return;
-      }
-
-      const result = await apiPost(apiUrl, { action: "createRelationship", ...form });
-
-      if (result.success) {
-        await fetchData();
-        setShowAddRel(false);
-      } else {
-        setError(result.message || "Gagal menyimpan hubungan.");
-      }
-    } catch (err) {
-      console.error("handleSaveRel error:", err);
-      setError(`Gagal menyimpan hubungan: ${err.message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
+  // ==========================================================
+  // SEARCH
+  // ==========================================================
 
   const handleSearch = (query) => {
     setSearch(query);
 
     if (query.trim()) {
-      const match = persons.find((person) =>
-        person.name.toLowerCase().includes(query.toLowerCase())
+      const match = persons.find((p) =>
+        p.name.toLowerCase().includes(query.toLowerCase())
       );
       setHighlightId(match?.id || null);
     } else {
@@ -259,31 +215,12 @@ export default function App() {
 
   const handleClickPerson = (person) => setShowDetail(person);
 
-  const handleDisconnect = async () => {
-    try {
-      if (window.storage && typeof window.storage.delete === "function") {
-        await window.storage.delete("family-tree-api-url");
-      }
-    } catch {
-      // Ignore
-    }
-
-    setMode(null);
-    setApiUrl("");
-    setPersons([]);
-    setRels([]);
-    setShowSettings(false);
-  };
-
-  if (!mode) {
-    return <SetupScreen onConnect={handleConnect} onDemo={handleDemo} />;
-  }
-
   const hasRels = (personId) =>
-    rels.some(
-      (relation) =>
-        relation.personId === personId || relation.relatedPersonId === personId
-    );
+    rels.some((r) => r.personId === personId || r.relatedPersonId === personId);
+
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
@@ -324,7 +261,7 @@ export default function App() {
             {tab === "tree" && (
               <button
                 type="button"
-                onClick={() => setShowSearch((current) => !current)}
+                onClick={() => setShowSearch((c) => !c)}
                 className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
               >
                 {Icons.search}
@@ -361,7 +298,6 @@ export default function App() {
                 ✓ Ditemukan: {persons.find((p) => p.id === highlightId)?.name}
               </p>
             )}
-
             {search && !highlightId && (
               <p className="text-xs text-slate-400 mt-1.5 ml-1">Tidak ditemukan</p>
             )}
@@ -369,17 +305,27 @@ export default function App() {
         )}
       </header>
 
-      {/* ERROR */}
+      {/* ERROR + RETRY */}
       {error && (
-        <div className="shrink-0 px-4 py-2 bg-red-50 border-b border-red-100 flex items-center justify-between">
-          <p className="text-xs text-red-600">{error}</p>
-          <button
-            type="button"
-            onClick={() => setError(null)}
-            className="text-red-400 hover:text-red-600"
-          >
-            {Icons.close}
-          </button>
+        <div className="shrink-0 px-4 py-2 bg-red-50 border-b border-red-100 flex items-center justify-between gap-3">
+          <p className="text-xs text-red-600 flex-1">{error}</p>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={fetchData}
+              disabled={loading}
+              className="text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 px-2.5 py-1 rounded-lg disabled:opacity-50 transition-colors"
+            >
+              Coba Lagi
+            </button>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="text-red-400 hover:text-red-600"
+            >
+              {Icons.close}
+            </button>
+          </div>
         </div>
       )}
 
@@ -387,15 +333,6 @@ export default function App() {
       {loading && (
         <div className="shrink-0 px-4 py-2 bg-blue-50 border-b border-blue-100">
           <p className="text-xs text-blue-600 animate-pulse">Mengambil data...</p>
-        </div>
-      )}
-
-      {/* DEMO BANNER */}
-      {mode === "demo" && (
-        <div className="shrink-0 px-4 py-1.5 bg-amber-50 border-b border-amber-100">
-          <p className="text-xs text-amber-600 text-center">
-            Mode Demo — data hanya tersimpan sementara
-          </p>
         </div>
       )}
 
@@ -435,18 +372,8 @@ export default function App() {
           </div>
         )}
 
-        {/* FAB */}
-        <div className="absolute bottom-5 right-5 flex flex-col gap-2 z-10">
-          {persons.length >= 2 && (
-            <button
-              type="button"
-              onClick={() => setShowAddRel(true)}
-              className="w-11 h-11 rounded-2xl bg-white shadow-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all"
-              title="Tambah hubungan"
-            >
-              {Icons.link}
-            </button>
-          )}
+        {/* FAB — tambah anggota */}
+        <div className="absolute bottom-5 right-5 z-10">
           <button
             type="button"
             onClick={() => setShowAddPerson(true)}
@@ -464,6 +391,8 @@ export default function App() {
           onSave={handleSavePerson}
           onCancel={() => setShowAddPerson(false)}
           saving={saving}
+          persons={persons}
+          rels={rels}
         />
       </Modal>
 
@@ -477,17 +406,6 @@ export default function App() {
           person={showEditPerson}
           onSave={handleUpdatePerson}
           onCancel={() => setShowEditPerson(null)}
-          saving={saving}
-        />
-      </Modal>
-
-      {/* ADD RELATION */}
-      <Modal open={showAddRel} onClose={() => setShowAddRel(false)} title="Tambah Hubungan">
-        <RelationshipForm
-          persons={persons}
-          rels={rels}
-          onSave={handleSaveRel}
-          onCancel={() => setShowAddRel(false)}
           saving={saving}
         />
       </Modal>
@@ -536,45 +454,22 @@ export default function App() {
       <Modal open={showSettings} onClose={() => setShowSettings(false)} title="Pengaturan">
         <div className="space-y-4">
           <div>
-            <p className="text-xs font-medium text-slate-500 mb-1">Mode</p>
-            <p className="text-sm text-slate-700">
-              {mode === "demo" ? "Demo (data sementara)" : "Terhubung ke Google Sheets"}
-            </p>
-          </div>
-
-          {apiUrl && (
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-1">API URL</p>
-              <p className="text-xs text-slate-500 break-all bg-slate-50 p-2 rounded-lg">
-                {apiUrl}
-              </p>
-            </div>
-          )}
-
-          <div>
             <p className="text-xs font-medium text-slate-500 mb-1">Data</p>
             <p className="text-sm text-slate-700">
               {persons.length} anggota, {rels.length} hubungan
             </p>
           </div>
 
-          {mode === "connected" && (
-            <button
-              type="button"
-              onClick={fetchData}
-              disabled={loading}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors"
-            >
-              {loading ? "Refreshing..." : "Refresh Data"}
-            </button>
-          )}
-
           <button
             type="button"
-            onClick={handleDisconnect}
-            className="w-full py-2.5 rounded-xl text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+            onClick={() => {
+              fetchData();
+              setShowSettings(false);
+            }}
+            disabled={loading}
+            className="w-full py-2.5 rounded-xl text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors"
           >
-            {mode === "demo" ? "Keluar Demo" : "Putuskan Koneksi"}
+            {loading ? "Mengambil data..." : "Refresh Data"}
           </button>
         </div>
       </Modal>
