@@ -1,7 +1,7 @@
 import { buildRelMaps } from "../utils/treeBuilder";
 import { Icons } from "./Icons";
 
-export default function PersonDetail({ person, persons, rels, onEdit, onDelete, onClickPerson }) {
+export default function PersonDetail({ person, persons, rels, onEdit, onDelete, onClickPerson, onFocus }) {
   if (!person) return null;
 
   const { spouseMap, childrenOfParent, parentsOfChild } = buildRelMaps(persons, rels);
@@ -130,23 +130,33 @@ export default function PersonDetail({ person, persons, rels, onEdit, onDelete, 
         </div>
       )}
 
-      <div className="flex gap-2 pt-1">
+      <div className="space-y-2 pt-1">
         <button
           type="button"
-          onClick={() => onEdit(person)}
-          className="flex-1 py-2.5 rounded-xl text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
+          onClick={() => onFocus(person)}
+          className="w-full py-2.5 rounded-xl text-sm font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 transition-colors"
         >
-          {Icons.edit}
-          Edit
+          Lihat Ranji
         </button>
-        <button
-          type="button"
-          onClick={() => onDelete(person)}
-          className="flex-1 py-2.5 rounded-xl text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
-        >
-          {Icons.trash}
-          Hapus
-        </button>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => onEdit(person)}
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
+          >
+            {Icons.edit}
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(person)}
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
+          >
+            {Icons.trash}
+            Hapus
+          </button>
+        </div>
       </div>
     </div>
   );

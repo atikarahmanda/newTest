@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 import { apiGet, apiPost } from "./api";
+import { buildRelMaps } from "./utils/treeBuilder";
 
 import Modal from "./components/Modal";
 import PersonForm from "./components/PersonForm";
@@ -9,6 +10,7 @@ import FamilyTreeView from "./components/FamilyTreeView";
 import MembersList from "./components/MembersList";
 import ConfirmDialog from "./components/ConfirmDialog";
 import { Icons } from "./components/Icons";
+import RanjiSelector from "./components/RanjiSelector";
 
 export default function App() {
   const [persons, setPersons] = useState([]);
@@ -18,8 +20,9 @@ export default function App() {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState("tree");
   const [search, setSearch] = useState("");
-  const [highlightId, setHighlightId] = useState(null);
-  const [showSearch, setShowSearch] = useState(false);
+
+  // Focused ranji view (null = full tree)
+  const [focusPersonId, setFocusPersonId] = useState(null);
 
   // Modals
   const [showAddPerson, setShowAddPerson] = useState(false);
@@ -185,6 +188,7 @@ export default function App() {
         await fetchData();
         setShowDeleteConfirm(null);
         setShowDetail(null);
+        if (focusPersonId === person.id) setFocusPersonId(null);
       } else {
         setError(result.message || "Gagal menghapus anggota.");
       }
@@ -196,24 +200,51 @@ export default function App() {
     }
   };
 
-  // ==========================================================
-  // SEARCH
-  // ==========================================================
+  const handleClickPerson = (person) => setShowDetail(person);
 
-  const handleSearch = (query) => {
-    setSearch(query);
+  const handleSelectRanji = (person) => setFocusPersonId(person.id);
+  const handleClearRanji = () => setFocusPersonId(null);
 
-    if (query.trim()) {
-      const match = persons.find((p) =>
-        p.name.toLowerCase().includes(query.toLowerCase())
-      );
-      setHighlightId(match?.id || null);
-    } else {
-      setHighlightId(null);
-    }
+  const handleFocusPerson = (person) => {
+    setFocusPersonId(person.id);
+    setShowDetail(null);
+    setTab("tree");
   };
 
-  const handleClickPerson = (person) => setShowDetail(person);
+  // Focused view: hanya person + pasangan + anak-anak
+  const focusPerson = useMemo(
+    () => persons.find((p) => p.id === focusPersonId) ?? null,
+    [focusPersonId, persons]
+  );
+
+  const { displayPersons, displayRels } = useMemo(() => {
+    if (!focusPersonId) return { displayPersons: persons, displayRels: rels };
+
+    const { spouseMap, childrenOfParent } = buildRelMaps(persons, rels);
+    const focusedIds = new Set();
+
+    // Kumpulkan orang ini + pasangan, lalu rekursif ke seluruh keturunan
+    function collectDescendants(personId) {
+      if (focusedIds.has(personId)) return;
+      focusedIds.add(personId);
+
+      const spouseId = spouseMap.get(personId);
+      if (spouseId) focusedIds.add(spouseId);
+
+      for (const childId of (childrenOfParent.get(personId) ?? [])) {
+        collectDescendants(childId);
+      }
+    }
+
+    collectDescendants(focusPersonId);
+
+    return {
+      displayPersons: persons.filter((p) => focusedIds.has(p.id)),
+      displayRels: rels.filter(
+        (r) => focusedIds.has(r.personId) && focusedIds.has(r.relatedPersonId)
+      ),
+    };
+  }, [focusPersonId, persons, rels]);
 
   const hasRels = (personId) =>
     rels.some((r) => r.personId === personId || r.relatedPersonId === personId);
@@ -258,15 +289,6 @@ export default function App() {
 
           {/* Actions */}
           <div className="flex items-center gap-1">
-            {tab === "tree" && (
-              <button
-                type="button"
-                onClick={() => setShowSearch((c) => !c)}
-                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                {Icons.search}
-              </button>
-            )}
             <button
               type="button"
               onClick={() => setShowSettings(true)}
@@ -276,34 +298,17 @@ export default function App() {
             </button>
           </div>
         </div>
-
-        {/* Search bar */}
-        {showSearch && tab === "tree" && (
-          <div className="px-4 pb-3">
-            <div className="relative">
-              <input
-                autoFocus
-                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50/50"
-                placeholder="Cari nama anggota..."
-                value={search}
-                onChange={(e) => handleSearch(e.target.value)}
-              />
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                {Icons.search}
-              </span>
-            </div>
-
-            {search && highlightId && (
-              <p className="text-xs text-green-600 mt-1.5 ml-1">
-                ✓ Ditemukan: {persons.find((p) => p.id === highlightId)?.name}
-              </p>
-            )}
-            {search && !highlightId && (
-              <p className="text-xs text-slate-400 mt-1.5 ml-1">Tidak ditemukan</p>
-            )}
-          </div>
-        )}
       </header>
+
+      {/* RANJI SELECTOR — always visible in tree tab */}
+      {tab === "tree" && (
+        <RanjiSelector
+          persons={persons}
+          focusPerson={focusPerson}
+          onSelect={handleSelectRanji}
+          onClear={handleClearRanji}
+        />
+      )}
 
       {/* ERROR + RETRY */}
       {error && (
@@ -340,10 +345,9 @@ export default function App() {
       <main className="flex-1 overflow-hidden relative">
         {tab === "tree" ? (
           <FamilyTreeView
-            persons={persons}
-            rels={rels}
+            persons={displayPersons}
+            rels={displayRels}
             onClickPerson={handleClickPerson}
-            highlightId={highlightId}
           />
         ) : (
           <div className="h-full overflow-y-auto">
@@ -430,6 +434,7 @@ export default function App() {
             setShowDeleteConfirm(person);
           }}
           onClickPerson={handleClickPerson}
+          onFocus={handleFocusPerson}
         />
       </Modal>
 
