@@ -6,7 +6,6 @@ export default function FamilyTreeSVG({
   rootNodes,
   positions,
   persons,
-  highlightId,
   onClickPerson,
 }) {
   const paths = useMemo(
@@ -40,7 +39,6 @@ export default function FamilyTreeSVG({
         const person = personMap.get(id);
         if (!person) return null;
 
-        const isHighlight = id === highlightId;
         const isMale = person.gender === "Male";
 
         return (
@@ -67,9 +65,9 @@ export default function FamilyTreeSVG({
               width={NODE_W}
               height={NODE_H}
               rx={14}
-              fill={isHighlight ? (isMale ? "#dbeafe" : "#fce7f3") : "white"}
-              stroke={isHighlight ? (isMale ? "#3b82f6" : "#ec4899") : "#e2e8f0"}
-              strokeWidth={isHighlight ? 2.5 : 1.2}
+              fill="white"
+              stroke="#e2e8f0"
+              strokeWidth={1.2}
             />
 
             {/* Top accent */}

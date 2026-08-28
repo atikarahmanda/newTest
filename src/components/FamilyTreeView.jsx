@@ -5,8 +5,19 @@ import { computeFullLayout } from "../utils/treeLayout";
 import FamilyTreeSVG from "./FamilyTreeSVG";
 import { Icons } from "./Icons";
 
-export default function FamilyTreeView({ persons, rels, onClickPerson, highlightId }) {
+const MIN_SCALE = 0.15;
+const MAX_SCALE = 2.5;
+
+function clampScale(s) {
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+}
+
+export default function FamilyTreeView({ persons, rels, onClickPerson, viewKey }) {
   const containerRef = useRef(null);
+
+  // Track active pointers for pinch-zoom
+  const activePointers = useRef(new Map()); // pointerId → {x, y}
+  const lastPinchDist = useRef(null);
 
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [dragging, setDragging] = useState(false);
@@ -16,23 +27,14 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, highlight
   const rootNodes = useMemo(() => buildFamilyNodes(persons, rels), [persons, rels]);
   const positions = useMemo(() => computeFullLayout(rootNodes), [rootNodes]);
 
-  // Center highlighted person
-  useEffect(() => {
-    if (highlightId && positions[highlightId] && containerRef.current) {
-      const pos = positions[highlightId];
-      const rect = containerRef.current.getBoundingClientRect();
-      setTransform({
-        x: rect.width / 2 - pos.x - NODE_W / 2,
-        y: rect.height / 2 - pos.y - NODE_H / 2,
-        scale: 1,
-      });
-    }
-  }, [highlightId, positions]);
-
+  // ────────────────────────────────────────────────────────────
+  // FIT VIEW
+  // ────────────────────────────────────────────────────────────
   const fitView = useCallback(() => {
-    if (!containerRef.current || !Object.keys(positions).length) return;
+    const el = containerRef.current;
+    if (!el || !Object.keys(positions).length) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
     Object.values(positions).forEach((p) => {
@@ -44,7 +46,9 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, highlight
 
     const tw = maxX - minX + 80;
     const th = maxY - minY + 80;
-    const scale = Math.min(1, rect.width / tw, rect.height / th);
+
+    // Fit entirely in view, capped at scale 1 and never below MIN_SCALE
+    const scale = clampScale(Math.min(1, rect.width / tw, rect.height / th));
 
     setTransform({
       x: (rect.width - tw * scale) / 2 - minX * scale + 40 * scale,
@@ -53,48 +57,108 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, highlight
     });
   }, [positions]);
 
+  // Auto-fit when data changes (new person added, etc.)
+  useEffect(() => { fitView(); }, [persons.length, rels.length, fitView]);
+
+  // Auto-fit when the focused ranji changes (viewKey flips between person IDs or "full")
+  useEffect(() => { fitView(); }, [viewKey, fitView]);
+
+  // ────────────────────────────────────────────────────────────
+  // WHEEL ZOOM — must be non-passive so preventDefault() works
+  // ────────────────────────────────────────────────────────────
   useEffect(() => {
-    fitView();
-  }, [persons.length, rels.length, fitView]);
+    const el = containerRef.current;
+    if (!el) return;
 
-  const onWheel = useCallback((event) => {
-    event.preventDefault();
-    const delta = event.deltaY > 0 ? 0.9 : 1.1;
+    const handler = (e) => {
+      e.preventDefault();
+      // Normalize cross-browser deltaY (some trackpads send small values)
+      const raw = e.deltaMode === 1 ? e.deltaY * 30 : e.deltaY;
+      const factor = raw > 0 ? 0.92 : 1 / 0.92;
 
-    setTransform((current) => {
-      const newScale = Math.min(3, Math.max(0.1, current.scale * delta));
-      const rect = containerRef.current?.getBoundingClientRect();
+      setTransform((cur) => {
+        const newScale = clampScale(cur.scale * factor);
+        const rect = el.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        return {
+          x: mx - (mx - cur.x) * (newScale / cur.scale),
+          y: my - (my - cur.y) * (newScale / cur.scale),
+          scale: newScale,
+        };
+      });
+    };
 
-      if (!rect) return { ...current, scale: newScale };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, []); // no deps — setTransform is always stable
 
-      const mx = event.clientX - rect.left;
-      const my = event.clientY - rect.top;
-
-      return {
-        x: mx - (mx - current.x) * (newScale / current.scale),
-        y: my - (my - current.y) * (newScale / current.scale),
-        scale: newScale,
-      };
-    });
-  }, []);
-
+  // ────────────────────────────────────────────────────────────
+  // POINTER EVENTS — drag (1 pointer) + pinch zoom (2 pointers)
+  // ────────────────────────────────────────────────────────────
   const onPointerDown = useCallback(
     (event) => {
-      if (event.target.closest("[data-clickable]")) return;
+      activePointers.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
 
-      setDragging(true);
-      setDragStart({ x: event.clientX, y: event.clientY });
-      setDragStartTransform({ x: transform.x, y: transform.y });
-      event.currentTarget.setPointerCapture(event.pointerId);
+      if (activePointers.current.size === 1) {
+        if (event.target.closest("[data-clickable]")) return;
+        setDragging(true);
+        setDragStart({ x: event.clientX, y: event.clientY });
+        setDragStartTransform({ x: transform.x, y: transform.y });
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } else if (activePointers.current.size === 2) {
+        // Switch to pinch mode — cancel ongoing drag
+        setDragging(false);
+        const pts = [...activePointers.current.values()];
+        lastPinchDist.current = Math.hypot(
+          pts[0].x - pts[1].x,
+          pts[0].y - pts[1].y
+        );
+      }
     },
     [transform.x, transform.y]
   );
 
   const onPointerMove = useCallback(
     (event) => {
+      activePointers.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      if (activePointers.current.size === 2) {
+        const pts = [...activePointers.current.values()];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+
+        if (lastPinchDist.current) {
+          const factor = dist / lastPinchDist.current;
+          const cx = (pts[0].x + pts[1].x) / 2;
+          const cy = (pts[0].y + pts[1].y) / 2;
+          const rect = containerRef.current?.getBoundingClientRect();
+
+          setTransform((cur) => {
+            const newScale = clampScale(cur.scale * factor);
+            if (!rect) return { ...cur, scale: newScale };
+            const mx = cx - rect.left;
+            const my = cy - rect.top;
+            return {
+              x: mx - (mx - cur.x) * (newScale / cur.scale),
+              y: my - (my - cur.y) * (newScale / cur.scale),
+              scale: newScale,
+            };
+          });
+        }
+
+        lastPinchDist.current = dist;
+        return;
+      }
+
       if (!dragging) return;
-      setTransform((current) => ({
-        ...current,
+      setTransform((cur) => ({
+        ...cur,
         x: dragStartTransform.x + (event.clientX - dragStart.x),
         y: dragStartTransform.y + (event.clientY - dragStart.y),
       }));
@@ -102,21 +166,25 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, highlight
     [dragging, dragStart, dragStartTransform]
   );
 
-  const onPointerUp = useCallback(() => setDragging(false), []);
+  const onPointerUp = useCallback((event) => {
+    activePointers.current.delete(event.pointerId);
+    if (activePointers.current.size < 2) lastPinchDist.current = null;
+    if (activePointers.current.size === 0) setDragging(false);
+  }, []);
 
-  const zoom = (factor) => {
-    setTransform((current) => ({
-      ...current,
-      scale: Math.min(3, Math.max(0.1, current.scale * factor)),
-    }));
+  // ────────────────────────────────────────────────────────────
+  // BUTTON ZOOM
+  // ────────────────────────────────────────────────────────────
+  const zoomBy = (factor) => {
+    setTransform((cur) => ({ ...cur, scale: clampScale(cur.scale * factor) }));
   };
 
   const isEmpty = persons.length === 0;
 
   return (
-    <div className="relative w-full h-full bg-slate-50/50" ref={containerRef}>
+    <div className="relative w-full h-full bg-slate-50/50 overflow-hidden" ref={containerRef}>
       {isEmpty ? (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center select-none">
           <div className="text-center">
             <div className="text-5xl mb-3 opacity-30">🌳</div>
             <p className="text-slate-400 text-sm">Belum ada anggota keluarga</p>
@@ -129,55 +197,71 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, highlight
         <svg
           width="100%"
           height="100%"
-          onWheel={onWheel}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
-          style={{ cursor: dragging ? "grabbing" : "grab", touchAction: "none" }}
+          style={{
+            cursor: dragging ? "grabbing" : "grab",
+            touchAction: "none",
+            display: "block",
+            userSelect: "none",
+          }}
         >
-          <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
+          <g
+            transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}
+          >
             <FamilyTreeSVG
               rootNodes={rootNodes}
               positions={positions}
               persons={persons}
-              highlightId={highlightId}
               onClickPerson={onClickPerson}
             />
           </g>
         </svg>
       )}
 
+      {/* ── Zoom controls (bottom-right) ── */}
       {!isEmpty && (
         <div className="absolute bottom-4 right-4 flex flex-col gap-1.5">
           <button
             type="button"
-            onClick={() => zoom(1.2)}
+            onClick={() => zoomBy(1.25)}
+            title="Perbesar"
             className="w-9 h-9 rounded-xl bg-white shadow-md border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
           >
             {Icons.zoomIn}
           </button>
           <button
             type="button"
-            onClick={() => zoom(0.8)}
+            onClick={() => zoomBy(0.8)}
+            title="Perkecil"
             className="w-9 h-9 rounded-xl bg-white shadow-md border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
           >
             {Icons.zoomOut}
           </button>
+          {/* Fit button — more prominent so it's easy to find */}
           <button
             type="button"
             onClick={fitView}
-            className="w-9 h-9 rounded-xl bg-white shadow-md border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+            title="Tampilkan semua (fit)"
+            className="w-9 h-9 rounded-xl bg-slate-700 shadow-md flex items-center justify-center text-white hover:bg-slate-600 transition-colors"
           >
             {Icons.reset}
           </button>
         </div>
       )}
 
+      {/* ── Zoom % badge — click also fits view ── */}
       {!isEmpty && (
-        <div className="absolute bottom-4 left-4 text-xs text-slate-400 bg-white/80 px-2 py-1 rounded-lg">
+        <button
+          type="button"
+          onClick={fitView}
+          title="Tampilkan semua"
+          className="absolute bottom-4 left-4 text-xs text-slate-500 bg-white/90 border border-slate-200 shadow-sm px-2.5 py-1 rounded-lg hover:bg-slate-50 transition-colors select-none"
+        >
           {Math.round(transform.scale * 100)}%
-        </div>
+        </button>
       )}
     </div>
   );

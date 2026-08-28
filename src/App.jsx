@@ -348,6 +348,7 @@ export default function App() {
             persons={displayPersons}
             rels={displayRels}
             onClickPerson={handleClickPerson}
+            viewKey={focusPersonId ?? "full"}
           />
         ) : (
           <div className="h-full overflow-y-auto">
