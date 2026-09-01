@@ -31,7 +31,7 @@ export default function UnlockGate({ onUnlock }) {
     <div className="h-screen flex flex-col items-center justify-center bg-white px-6">
       <div className="w-full max-w-xs text-center space-y-6">
         <div className="space-y-2">
-          <span className="text-4xl">🌳</span>
+          <span className="text-4xl"></span>
           <h1 className="text-lg font-semibold text-slate-800">Silsilah Keluarga</h1>
           <p className="text-sm text-slate-500">
             Data keluarga bersifat privat. Masukkan PIN untuk membuka.

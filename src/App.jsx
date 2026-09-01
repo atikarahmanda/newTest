@@ -360,7 +360,7 @@ export default function App() {
         <div className="flex items-center justify-between px-4 h-14">
           {/* Logo */}
           <div className="flex items-center gap-2.5">
-            <span className="text-xl">🌳</span>
+            <span className="text-xl"></span>
             <h1 className="text-base font-semibold text-slate-800 hidden sm:block">
               Silsilah Keluarga
             </h1>
