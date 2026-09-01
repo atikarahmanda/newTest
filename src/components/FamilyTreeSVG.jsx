@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { NODE_W, NODE_H } from "../backend/constants";
 import { getConnectorPaths } from "../backend/connectors";
 import { genderMeta } from "../genderMeta";
+import { resolvePhotoUrl } from "../photoUrl";
 
 export default function FamilyTreeSVG({
   rootNodes,
@@ -81,7 +82,7 @@ export default function FamilyTreeSVG({
               opacity="0.9"
             />
 
-            {/* Avatar */}
+            {/* Avatar base */}
             <circle
               cx={pos.x + 22}
               cy={pos.y + NODE_H / 2 + 3}
@@ -91,27 +92,44 @@ export default function FamilyTreeSVG({
               strokeWidth="1"
             />
 
-            {person.photoUrl ? (
-              <image
-                href={person.photoUrl}
-                x={pos.x + 8}
-                y={pos.y + NODE_H / 2 - 11}
-                width="28"
-                height="28"
-                preserveAspectRatio="xMidYMid slice"
-                clipPath={`circle(14px at ${pos.x + 22}px ${pos.y + NODE_H / 2 + 3}px)`}
-              />
-            ) : (
-              <text
-                x={pos.x + 22}
-                y={pos.y + NODE_H / 2 + 8}
-                textAnchor="middle"
-                fontSize="12"
-                fontWeight="600"
-                fill={g.svg.accent}
-              >
-                {person.name.charAt(0)}
-              </text>
+            {/* Inisial — tampil kalau tak ada foto / foto gagal dimuat */}
+            <text
+              x={pos.x + 22}
+              y={pos.y + NODE_H / 2 + 8}
+              textAnchor="middle"
+              fontSize="12"
+              fontWeight="600"
+              fill={g.svg.accent}
+            >
+              {person.name.charAt(0)}
+            </text>
+
+            {person.photoUrl && (
+              <>
+                <clipPath id={`photo-${id}`}>
+                  <circle cx={pos.x + 22} cy={pos.y + NODE_H / 2 + 3} r={14} />
+                </clipPath>
+                <image
+                  href={resolvePhotoUrl(person.photoUrl)}
+                  x={pos.x + 8}
+                  y={pos.y + NODE_H / 2 - 11}
+                  width="28"
+                  height="28"
+                  preserveAspectRatio="xMidYMid slice"
+                  clipPath={`url(#photo-${id})`}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+                <circle
+                  cx={pos.x + 22}
+                  cy={pos.y + NODE_H / 2 + 3}
+                  r={14}
+                  fill="none"
+                  stroke={g.svg.avatarStroke}
+                  strokeWidth="1"
+                />
+              </>
             )}
 
             {/* Name */}

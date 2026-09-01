@@ -1,5 +1,6 @@
 import { buildRelMaps } from "../backend/treeBuilder";
 import { genderMeta } from "../genderMeta";
+import { resolvePhotoUrl } from "../photoUrl";
 import { Icons } from "./Icons";
 
 export default function MembersList({ persons, rels, search, onClickPerson, onEdit, onDelete, role }) {
@@ -36,16 +37,19 @@ export default function MembersList({ persons, rels, search, onClickPerson, onEd
             onClick={() => onClickPerson(person)}
           >
             <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 ${genderMeta(person.gender).avatarGradient}`}
+              className={`relative w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden ${genderMeta(person.gender).avatarGradient}`}
             >
-              {person.photoUrl ? (
+              <span className="absolute">{person.name.charAt(0)}</span>
+              {person.photoUrl && (
                 <img
-                  src={person.photoUrl}
-                  className="w-full h-full rounded-xl object-cover"
+                  src={resolvePhotoUrl(person.photoUrl)}
+                  className="w-full h-full rounded-xl object-cover relative"
                   alt=""
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
-              ) : (
-                person.name.charAt(0)
               )}
             </div>
 

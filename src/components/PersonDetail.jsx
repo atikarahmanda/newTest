@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { buildRelMaps, siblingRank } from "../backend/treeBuilder";
 import { genderMeta } from "../genderMeta";
+import { resolvePhotoUrl } from "../photoUrl";
+import ImageLightbox from "./ImageLightbox";
 import { Icons } from "./Icons";
 
 const bySiblingOrder = (persons) => {
@@ -9,6 +12,8 @@ const bySiblingOrder = (persons) => {
 };
 
 export default function PersonDetail({ person, persons, rels, onEdit, onDelete, onClickPerson, onFocus, onManageRels, role }) {
+  const [showPhoto, setShowPhoto] = useState(false);
+
   if (!person) return null;
 
   const { spouseMap, childrenOfParent, parentsOfChild } = buildRelMaps(persons, rels);
@@ -56,16 +61,20 @@ export default function PersonDetail({ person, persons, rels, onEdit, onDelete, 
       {/* Header */}
       <div className="flex items-center gap-4">
         <div
-          className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white ${genderMeta(person.gender).avatarGradient}`}
+          className={`relative w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white overflow-hidden ${genderMeta(person.gender).avatarGradient}`}
         >
-          {person.photoUrl ? (
+          <span className="absolute">{person.name.charAt(0)}</span>
+          {person.photoUrl && (
             <img
-              src={person.photoUrl}
-              className="w-full h-full rounded-2xl object-cover"
+              src={resolvePhotoUrl(person.photoUrl)}
+              className="w-full h-full rounded-2xl object-cover relative cursor-zoom-in"
               alt=""
+              title="Lihat foto"
+              onClick={() => setShowPhoto(true)}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
             />
-          ) : (
-            person.name.charAt(0)
           )}
         </div>
 
@@ -177,6 +186,14 @@ export default function PersonDetail({ person, persons, rels, onEdit, onDelete, 
           </div>
         )}
       </div>
+
+      {showPhoto && person.photoUrl && (
+        <ImageLightbox
+          src={resolvePhotoUrl(person.photoUrl)}
+          alt={person.name}
+          onClose={() => setShowPhoto(false)}
+        />
+      )}
     </div>
   );
 }
