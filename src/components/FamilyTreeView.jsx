@@ -4,6 +4,7 @@ import { buildFamilyNodes } from "../backend/treeBuilder";
 import { computeFullLayout } from "../backend/treeLayout";
 import FamilyTreeSVG from "./FamilyTreeSVG";
 import { Icons } from "./Icons";
+import { printRanji } from "./printRanji";
 
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 2.5;
@@ -12,8 +13,9 @@ function clampScale(s) {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
 }
 
-export default function FamilyTreeView({ persons, rels, onClickPerson, viewKey }) {
+export default function FamilyTreeView({ persons, rels, onClickPerson, viewKey, printTitle }) {
   const containerRef = useRef(null);
+  const svgRef = useRef(null);
 
   // Track active pointers for pinch-zoom
   const activePointers = useRef(new Map()); // pointerId → {x, y}
@@ -193,6 +195,7 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, viewKey }
         </div>
       ) : (
         <svg
+          ref={svgRef}
           width="100%"
           height="100%"
           onPointerDown={onPointerDown}
@@ -222,6 +225,14 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, viewKey }
       {/* ── Zoom controls (bottom-right) ── */}
       {!isEmpty && (
         <div className="absolute bottom-4 right-4 flex flex-col gap-1.5">
+          <button
+            type="button"
+            onClick={() => printRanji(svgRef.current, positions, printTitle)}
+            title="Cetak / simpan PDF ranji ini"
+            className="w-9 h-9 rounded-xl bg-white shadow-md border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            {Icons.printer}
+          </button>
           <button
             type="button"
             onClick={() => zoomBy(1.25)}

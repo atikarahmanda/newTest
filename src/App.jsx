@@ -494,6 +494,7 @@ export default function App() {
             rels={displayRels}
             onClickPerson={handleClickPerson}
             viewKey={focusPersonId ?? "full"}
+            printTitle={focusPerson ? `Ranji ${focusPerson.name}` : "Silsilah Keluarga"}
           />
         ) : (
           <div className="h-full overflow-y-auto">
