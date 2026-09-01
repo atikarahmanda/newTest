@@ -2,10 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// base = '/<nama-repo>/' supaya asset benar saat dihosting di
-// https://atikarahmanda.github.io/silsilah-keluarga/
+// base relatif ('./') supaya jalan di subpath apa pun:
+//   atikarahmanda.github.io/newTest/ , /silsilah-keluarga/ , dll.
+// Aman karena app ini tidak pakai client-side routing (tab via state).
 export default defineConfig({
-  base: '/silsilah-keluarga/',
+  base: './',
   plugins: [
     react(),
     tailwindcss(),
