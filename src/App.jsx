@@ -391,7 +391,7 @@ export default function App() {
           <div className="flex bg-slate-100 rounded-xl p-0.5">
             {[
               ["tree", "Silsilah"],
-              ["members", `Anggota (${persons.length})`],
+              ["members", `Anggota (${displayPersons.length})`],
             ].map(([key, label]) => (
               <button
                 key={key}
@@ -445,8 +445,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* RANJI SELECTOR — always visible in tree tab */}
-      {tab === "tree" && (
+      {/* RANJI SELECTOR — filter berlaku untuk tab Silsilah & Anggota */}
+      {(tab === "tree" || tab === "members") && (
         <RanjiSelector
           persons={persons}
           focusPerson={focusPerson}
@@ -512,8 +512,8 @@ export default function App() {
             </div>
 
             <MembersList
-              persons={persons}
-              rels={rels}
+              persons={displayPersons}
+              rels={displayRels}
               search={search}
               onClickPerson={handleClickPerson}
               onEdit={(person) => setShowEditPerson(person)}
