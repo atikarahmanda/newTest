@@ -1,4 +1,5 @@
 import { buildRelMaps, siblingRank } from "../backend/treeBuilder";
+import { genderMeta } from "../genderMeta";
 import { Icons } from "./Icons";
 
 const bySiblingOrder = (persons) => {
