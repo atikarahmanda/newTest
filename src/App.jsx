@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 import {
   apiGet,
@@ -7,6 +7,8 @@ import {
   clearAuthPin,
   demoteAuthPin,
   AuthError,
+  readDataCache,
+  writeDataCache,
 } from "./backend/api";
 import { buildRelMaps } from "./backend/treeBuilder";
 
@@ -79,16 +81,33 @@ export default function App() {
   // FETCH DATA
   // ==========================================================
 
+  const seededFromCache = useRef(false);
+
   const fetchData = useCallback(async () => {
-    setLoading(true);
     setError(null);
+
+    // Load pertama: tampilkan data cache seketika, refresh diam-diam di belakang.
+    if (!seededFromCache.current) {
+      seededFromCache.current = true;
+      const cached = readDataCache();
+      if (cached) {
+        setPersons(cached.persons || []);
+        setRels(cached.relationships || []);
+      } else {
+        setLoading(true);
+      }
+    } else {
+      setLoading(true);
+    }
 
     try {
       const result = await apiGet({ action: "getAll" });
 
       if (result.success) {
-        setPersons(result.data?.persons || []);
-        setRels(result.data?.relationships || []);
+        const data = result.data || {};
+        setPersons(data.persons || []);
+        setRels(data.relationships || []);
+        writeDataCache(data);
       } else {
         setError(result.message || "Gagal mengambil data.");
       }

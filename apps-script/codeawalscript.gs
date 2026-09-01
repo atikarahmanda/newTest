@@ -140,20 +140,40 @@ function doGet(e) {
         return jsonResponse(getPerson(e.parameter.id));
       
       case 'getAll':
-        return jsonResponse({
-          success: true,
-          data: {
-            persons: getPersons(),
-            relationships: getRelationships()
-          }
-        });
-      
+        return jsonResponse(getAllCached_());
+
       default:
         return jsonResponse({ success: false, message: 'Unknown action: ' + action });
     }
   } catch (err) {
     return jsonResponse({ success: false, message: err.message });
   }
+}
+
+// ===== CACHE (mempercepat getAll) =====
+var GETALL_CACHE_KEY = 'getAll_v1';
+var GETALL_CACHE_TTL = 60; // detik
+
+function getAllCached_() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(GETALL_CACHE_KEY);
+  if (hit) return JSON.parse(hit);
+
+  var payload = {
+    success: true,
+    data: {
+      persons: getPersons(),
+      relationships: getRelationships()
+    }
+  };
+
+  var str = JSON.stringify(payload);
+  if (str.length < 100000) cache.put(GETALL_CACHE_KEY, str, GETALL_CACHE_TTL); // batas 100KB
+  return payload;
+}
+
+function invalidateCache_() {
+  CacheService.getScriptCache().remove(GETALL_CACHE_KEY);
 }
 
 function getPersons() {
@@ -163,11 +183,24 @@ function getPersons() {
     id: String(p['ID'] || ''),
     name: String(p['Name'] || ''),
     gender: String(p['Gender'] || ''),
-    birthDate: p['Birth Date'] ? Utilities.formatDate(new Date(p['Birth Date']), Session.getScriptTimeZone(), 'yyyy-MM-dd') : '',
+    birthDate: formatDateCell_(p['Birth Date']),
     photoUrl: String(p['Photo URL'] || ''),
     notes: String(p['Notes'] || ''),
     siblingOrder: parseSiblingOrder_(p['Sibling Order'])
   }));
+}
+
+// Date -> 'yyyy-MM-dd' tanpa Utilities/Session (jauh lebih cepat per baris).
+// Kalau sel sudah berupa teks, kembalikan apa adanya.
+function formatDateCell_(v) {
+  if (!v) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    var y = v.getFullYear();
+    var m = ('0' + (v.getMonth() + 1)).slice(-2);
+    var d = ('0' + v.getDate()).slice(-2);
+    return y + '-' + m + '-' + d;
+  }
+  return String(v);
 }
 
 // '' / null / bukan angka -> null ; selain itu -> Number
@@ -203,6 +236,9 @@ function doPost(e) {
 
     const gate = requireRole_(data.pin, action);
     if (gate.error) return gate.error;
+
+    // Semua aksi POST mengubah data → buang cache getAll
+    invalidateCache_();
 
     switch (action) {
       case 'createPerson':

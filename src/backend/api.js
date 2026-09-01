@@ -1,5 +1,5 @@
 export const API_URL =
-  "https://script.google.com/macros/s/AKfycbzHyqCYbK6Dp1uOlyCWKo4mQOokTDHeAIhopWKOockAgzo49EDx9OjrjervP36ew2tb/exec"
+  "https://script.google.com/macros/s/AKfycbxGH3qHrquaSU9UwI1j_skVykXEMJDcBe8O4MNQOnLO8izhRWjVzrJipouRwk9DuOrB/exec"
 // ==========================================================
 // AUTH PIN — dikirim ke backend di setiap request.
 // Backend (Apps Script) yang memvalidasi; frontend tidak menyimpan PIN asli.
@@ -55,6 +55,39 @@ export function clearAuthPin() {
   authPin = "";
   write(PIN_KEY, "");
   write(USER_PIN_KEY, "");
+  clearDataCache();
+}
+
+// ==========================================================
+// DATA CACHE — simpan hasil getAll terakhir supaya app terbuka instan
+// (stale-while-revalidate). Dibersihkan saat "Kunci Aplikasi" / sesi invalid.
+// ==========================================================
+
+const DATA_CACHE_KEY = "sk_data_cache";
+
+export function readDataCache() {
+  try {
+    const raw = localStorage.getItem(DATA_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeDataCache(data) {
+  try {
+    localStorage.setItem(DATA_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    /* kuota penuh / mode privat — abaikan */
+  }
+}
+
+export function clearDataCache() {
+  try {
+    localStorage.removeItem(DATA_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Error yang menandakan PIN salah / sesi tidak valid. */
