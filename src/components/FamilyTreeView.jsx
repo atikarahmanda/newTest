@@ -28,40 +28,38 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, viewKey }
   const positions = useMemo(() => computeFullLayout(rootNodes), [rootNodes]);
 
   // ────────────────────────────────────────────────────────────
-  // FIT VIEW
+  // CENTER VIEW — zoom 100%, fokus ke generasi teratas (kakek/nenek)
   // ────────────────────────────────────────────────────────────
-  const fitView = useCallback(() => {
+  const centerView = useCallback(() => {
     const el = containerRef.current;
     if (!el || !Object.keys(positions).length) return;
 
     const rect = el.getBoundingClientRect();
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const pts = Object.values(positions);
 
-    Object.values(positions).forEach((p) => {
-      minX = Math.min(minX, p.x);
-      minY = Math.min(minY, p.y);
-      maxX = Math.max(maxX, p.x + NODE_W);
-      maxY = Math.max(maxY, p.y + NODE_H);
-    });
+    // Baris paling atas = generasi tertua
+    const minY = Math.min(...pts.map((p) => p.y));
+    const topRow = pts.filter((p) => p.y <= minY + NODE_H / 2);
 
-    const tw = maxX - minX + 80;
-    const th = maxY - minY + 80;
+    // Tengahkan horizontal pada kakek/nenek di baris teratas
+    const topMinX = Math.min(...topRow.map((p) => p.x));
+    const topMaxX = Math.max(...topRow.map((p) => p.x + NODE_W));
+    const topCenterX = (topMinX + topMaxX) / 2;
 
-    // Fit entirely in view, capped at scale 1 and never below MIN_SCALE
-    const scale = clampScale(Math.min(1, rect.width / tw, rect.height / th));
+    const padTop = 48;
 
     setTransform({
-      x: (rect.width - tw * scale) / 2 - minX * scale + 40 * scale,
-      y: (rect.height - th * scale) / 2 - minY * scale + 40 * scale,
-      scale,
+      scale: 1,
+      x: rect.width / 2 - topCenterX,
+      y: padTop - minY,
     });
   }, [positions]);
 
-  // Auto-fit when data changes (new person added, etc.)
-  useEffect(() => { fitView(); }, [persons.length, rels.length, fitView]);
+  // Default & saat data berubah: zoom 100% di tengah
+  useEffect(() => { centerView(); }, [persons.length, rels.length, centerView]);
 
-  // Auto-fit when the focused ranji changes (viewKey flips between person IDs or "full")
-  useEffect(() => { fitView(); }, [viewKey, fitView]);
+  // Saat ranji fokus berganti (viewKey: ID orang atau "full")
+  useEffect(() => { centerView(); }, [viewKey, centerView]);
 
   // ────────────────────────────────────────────────────────────
   // WHEEL ZOOM — must be non-passive so preventDefault() works
@@ -240,11 +238,11 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, viewKey }
           >
             {Icons.zoomOut}
           </button>
-          {/* Fit button — more prominent so it's easy to find */}
+          {/* Reset — zoom 100%, fokus kakek/nenek di tengah */}
           <button
             type="button"
-            onClick={fitView}
-            title="Tampilkan semua (fit)"
+            onClick={centerView}
+            title="Reset ke 100% di tengah"
             className="w-9 h-9 rounded-xl bg-slate-700 shadow-md flex items-center justify-center text-white hover:bg-slate-600 transition-colors"
           >
             {Icons.reset}
@@ -256,8 +254,8 @@ export default function FamilyTreeView({ persons, rels, onClickPerson, viewKey }
       {!isEmpty && (
         <button
           type="button"
-          onClick={fitView}
-          title="Tampilkan semua"
+          onClick={centerView}
+          title="Reset ke 100% di tengah"
           className="absolute bottom-4 left-4 text-xs text-slate-500 bg-white/90 border border-slate-200 shadow-sm px-2.5 py-1 rounded-lg hover:bg-slate-50 transition-colors select-none"
         >
           {Math.round(transform.scale * 100)}%
