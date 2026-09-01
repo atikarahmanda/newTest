@@ -1,3 +1,14 @@
+/**
+ * Nilai urut saudara. Angka kecil = lebih tua (paling kiri).
+ * Kosong / bukan angka → Infinity, artinya taruh setelah yang bernomor,
+ * lalu urutannya jatuh ke urutan input (index di array persons).
+ */
+export function siblingRank(person) {
+  const v = person && person.siblingOrder;
+  const n = Number(v);
+  return v === "" || v == null || Number.isNaN(n) ? Infinity : n;
+}
+
 /*
  * Relationship rules:
  * 1. spouse is always bidirectional.
@@ -66,6 +77,7 @@ export function buildRelMaps(persons, rels) {
  */
 export function buildFamilyNodes(persons, rels) {
   const personMap = new Map(persons.map((p) => [p.id, p]));
+  const personIndex = new Map(persons.map((p, i) => [p.id, i])); // urutan input
   const { spouseMap, childrenOfParent, parentsOfChild } = buildRelMaps(persons, rels);
 
   const unitByPerson = new Map();
@@ -98,7 +110,8 @@ export function buildFamilyNodes(persons, rels) {
   }
 
   for (const parentUnit of units) {
-    const childUnits = new Set();
+    // childUnit -> id anak kandung yang menghubungkan ke unit ini
+    const viaChild = new Map();
 
     for (const parentId of parentUnit.memberIds) {
       const childIds = childrenOfParent.get(parentId) || [];
@@ -107,12 +120,20 @@ export function buildFamilyNodes(persons, rels) {
         const childUnit = unitByPerson.get(childId);
         if (!childUnit || childUnit === parentUnit) continue;
 
-        childUnits.add(childUnit);
+        if (!viaChild.has(childUnit)) viaChild.set(childUnit, childId);
         childUnit.parentUnits.add(parentUnit);
       }
     }
 
-    parentUnit.children = [...childUnits];
+    // Urutkan saudara: kolom "Urutan" dulu, lalu urutan input sebagai tie-break.
+    parentUnit.children = [...viaChild.keys()].sort((ua, ub) => {
+      const a = personMap.get(viaChild.get(ua));
+      const b = personMap.get(viaChild.get(ub));
+      return (
+        siblingRank(a) - siblingRank(b) ||
+        (personIndex.get(a.id) ?? 0) - (personIndex.get(b.id) ?? 0)
+      );
+    });
   }
 
   const rootUnits = units.filter((unit) => unit.parentUnits.size === 0);

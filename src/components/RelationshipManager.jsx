@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Icons } from "./Icons";
+import { genderMeta, genderAllowsSpouse } from "../genderMeta";
+import PersonSearchSelect from "./PersonSearchSelect";
 
 // Ambil hubungan eksplisit dari raw rels (bukan dari buildRelMaps yang sudah implicit)
 function getExplicitRels(person, persons, rels) {
@@ -54,7 +56,7 @@ export default function RelationshipManager({ person, persons, rels, onAdd, onDe
     .filter((p) => {
       if (addType === "spouse") {
         return (
-          p.gender !== person.gender &&
+          genderAllowsSpouse(p.gender, person.gender) &&
           !hasSpouse(p.id, rels) &&
           !hasSpouse(person.id, rels)
         );
@@ -92,17 +94,10 @@ export default function RelationshipManager({ person, persons, rels, onAdd, onDe
     setRelatedId("");
   };
 
-  const selectCls =
-    "w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
-
   const RelRow = ({ entry, label }) => (
     <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl">
-      <span
-        className={`text-xs shrink-0 ${
-          entry.person.gender === "Male" ? "text-blue-400" : "text-pink-400"
-        }`}
-      >
-        {entry.person.gender === "Male" ? "♂" : "♀"}
+      <span className={`text-xs shrink-0 ${genderMeta(entry.person.gender).text400}`}>
+        {genderMeta(entry.person.gender).symbol}
       </span>
       <span className="text-sm flex-1 truncate">{entry.person.name}</span>
       {label && (
@@ -196,18 +191,12 @@ export default function RelationshipManager({ person, persons, rels, onAdd, onDe
                 Tidak ada kandidat yang tersedia untuk jenis hubungan ini.
               </p>
             ) : (
-              <select
-                className={selectCls}
+              <PersonSearchSelect
+                persons={candidates}
                 value={relatedId}
-                onChange={(e) => setRelatedId(e.target.value)}
-              >
-                <option value="">Pilih anggota...</option>
-                {candidates.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.gender === "Male" ? "Laki-laki" : "Perempuan"})
-                  </option>
-                ))}
-              </select>
+                onChange={setRelatedId}
+                placeholder="Cari & pilih anggota..."
+              />
             )}
 
             {relatedId && (

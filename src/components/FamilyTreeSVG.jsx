@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { NODE_W, NODE_H } from "../backend/constants";
 import { getConnectorPaths } from "../backend/connectors";
+import { genderMeta } from "../genderMeta";
 
 export default function FamilyTreeSVG({
   rootNodes,
@@ -39,7 +40,7 @@ export default function FamilyTreeSVG({
         const person = personMap.get(id);
         if (!person) return null;
 
-        const isMale = person.gender === "Male";
+        const g = genderMeta(person.gender);
 
         return (
           <g
@@ -76,7 +77,7 @@ export default function FamilyTreeSVG({
               y={pos.y + 1}
               width={NODE_W - 2}
               height={4}
-              fill={isMale ? "#3b82f6" : "#ec4899"}
+              fill={g.svg.accent}
               opacity="0.9"
             />
 
@@ -85,8 +86,8 @@ export default function FamilyTreeSVG({
               cx={pos.x + 22}
               cy={pos.y + NODE_H / 2 + 3}
               r={14}
-              fill={isMale ? "#eff6ff" : "#fdf2f8"}
-              stroke={isMale ? "#bfdbfe" : "#fbcfe8"}
+              fill={g.svg.avatarFill}
+              stroke={g.svg.avatarStroke}
               strokeWidth="1"
             />
 
@@ -107,7 +108,7 @@ export default function FamilyTreeSVG({
                 textAnchor="middle"
                 fontSize="12"
                 fontWeight="600"
-                fill={isMale ? "#3b82f6" : "#ec4899"}
+                fill={g.svg.accent}
               >
                 {person.name.charAt(0)}
               </text>

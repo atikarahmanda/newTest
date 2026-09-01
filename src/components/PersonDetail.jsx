@@ -1,5 +1,11 @@
-import { buildRelMaps } from "../backend/treeBuilder";
+import { buildRelMaps, siblingRank } from "../backend/treeBuilder";
 import { Icons } from "./Icons";
+
+const bySiblingOrder = (persons) => {
+  const idx = new Map(persons.map((p, i) => [p.id, i]));
+  return (a, b) =>
+    siblingRank(a) - siblingRank(b) || (idx.get(a.id) ?? 0) - (idx.get(b.id) ?? 0);
+};
 
 export default function PersonDetail({ person, persons, rels, onEdit, onDelete, onClickPerson, onFocus, onManageRels, role }) {
   if (!person) return null;
@@ -10,7 +16,10 @@ export default function PersonDetail({ person, persons, rels, onEdit, onDelete, 
   const spouse = spouseId ? persons.find((p) => p.id === spouseId) : null;
 
   const childIds = childrenOfParent.get(person.id) || [];
-  const children = childIds.map((id) => persons.find((p) => p.id === id)).filter(Boolean);
+  const children = childIds
+    .map((id) => persons.find((p) => p.id === id))
+    .filter(Boolean)
+    .sort(bySiblingOrder(persons));
 
   const parentIds = parentsOfChild.get(person.id) || [];
   const parents = parentIds.map((id) => persons.find((p) => p.id === id)).filter(Boolean);
@@ -23,7 +32,8 @@ export default function PersonDetail({ person, persons, rels, onEdit, onDelete, 
   });
   const siblings = [...siblingIds]
     .map((id) => persons.find((p) => p.id === id))
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort(bySiblingOrder(persons));
 
   const age = person.birthDate
     ? Math.floor((Date.now() - new Date(person.birthDate).getTime()) / 31557600000)
@@ -35,7 +45,7 @@ export default function PersonDetail({ person, persons, rels, onEdit, onDelete, 
       onClick={() => onClickPerson(chipPerson)}
       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm text-slate-700 transition-colors"
     >
-      <span className={chipPerson.gender === "Male" ? "text-blue-500" : "text-pink-500"}>●</span>
+      <span className={genderMeta(chipPerson.gender).text500}>●</span>
       {chipPerson.name}
     </button>
   );
@@ -45,11 +55,7 @@ export default function PersonDetail({ person, persons, rels, onEdit, onDelete, 
       {/* Header */}
       <div className="flex items-center gap-4">
         <div
-          className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white ${
-            person.gender === "Male"
-              ? "bg-gradient-to-br from-blue-400 to-blue-600"
-              : "bg-gradient-to-br from-pink-400 to-pink-600"
-          }`}
+          className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white ${genderMeta(person.gender).avatarGradient}`}
         >
           {person.photoUrl ? (
             <img
@@ -65,7 +71,7 @@ export default function PersonDetail({ person, persons, rels, onEdit, onDelete, 
         <div className="flex-1 min-w-0">
           <h3 className="text-lg font-semibold text-slate-800 truncate">{person.name}</h3>
           <div className="flex items-center gap-2 text-sm text-slate-500">
-            <span>{person.gender === "Male" ? "♂ Laki-laki" : "♀ Perempuan"}</span>
+            <span>{genderMeta(person.gender).symbol} {genderMeta(person.gender).label}</span>
             {age !== null && <span>• {age} tahun</span>}
           </div>
           {person.birthDate && (

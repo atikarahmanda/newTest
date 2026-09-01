@@ -6,7 +6,7 @@
 // 1. Buka Google Sheets baru di https://sheets.google.com
 // 2. Buat 2 sheet dengan nama persis: "Persons" dan "Relationships"
 // 3. Di sheet "Persons", tambahkan header di baris 1:
-//    ID | Name | Gender | Birth Date | Photo URL | Notes
+//    ID | Name | Gender | Birth Date | Photo URL | Notes | Sibling Order
 // 4. Di sheet "Relationships", tambahkan header di baris 1:
 //    ID | Person ID | Related Person ID | Relationship Type
 // 5. Buka menu Extensions > Apps Script
@@ -165,8 +165,16 @@ function getPersons() {
     gender: String(p['Gender'] || ''),
     birthDate: p['Birth Date'] ? Utilities.formatDate(new Date(p['Birth Date']), Session.getScriptTimeZone(), 'yyyy-MM-dd') : '',
     photoUrl: String(p['Photo URL'] || ''),
-    notes: String(p['Notes'] || '')
+    notes: String(p['Notes'] || ''),
+    siblingOrder: parseSiblingOrder_(p['Sibling Order'])
   }));
+}
+
+// '' / null / bukan angka -> null ; selain itu -> Number
+function parseSiblingOrder_(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  var n = Number(v);
+  return isNaN(n) ? null : n;
 }
 
 function getRelationships() {
@@ -233,9 +241,10 @@ function createPerson(data) {
     data.gender || '',
     data.birthDate || '',
     data.photoUrl || '',
-    data.notes || ''
+    data.notes || '',
+    parseSiblingOrder_(data.siblingOrder) === null ? '' : parseSiblingOrder_(data.siblingOrder)
   ]);
-  
+
   return {
     success: true,
     data: {
@@ -244,7 +253,8 @@ function createPerson(data) {
       gender: data.gender || '',
       birthDate: data.birthDate || '',
       photoUrl: data.photoUrl || '',
-      notes: data.notes || ''
+      notes: data.notes || '',
+      siblingOrder: parseSiblingOrder_(data.siblingOrder)
     }
   };
 }
@@ -254,15 +264,17 @@ function updatePerson(data) {
   const row = findRowIndex(sheet, data.id);
   if (row === -1) return { success: false, message: 'Person not found' };
   
-  const range = sheet.getRange(row, 2, 1, 5); // Columns B-F
+  const order = parseSiblingOrder_(data.siblingOrder);
+  const range = sheet.getRange(row, 2, 1, 6); // Columns B-G
   range.setValues([[
     data.name || '',
     data.gender || '',
     data.birthDate || '',
     data.photoUrl || '',
-    data.notes || ''
+    data.notes || '',
+    order === null ? '' : order
   ]]);
-  
+
   return {
     success: true,
     data: {
@@ -271,7 +283,8 @@ function updatePerson(data) {
       gender: data.gender || '',
       birthDate: data.birthDate || '',
       photoUrl: data.photoUrl || '',
-      notes: data.notes || ''
+      notes: data.notes || '',
+      siblingOrder: order
     }
   };
 }

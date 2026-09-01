@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { genderMeta } from "../genderMeta";
 
 export default function RanjiSelector({ persons, focusPerson, onSelect, onClear }) {
   const [query, setQuery] = useState("");
@@ -63,12 +64,8 @@ export default function RanjiSelector({ persons, focusPerson, onSelect, onClear 
             onClick={() => setOpen(true)}
             className="w-full flex items-center gap-2 px-3 py-1.5 bg-violet-50 border border-violet-200 rounded-lg text-left group"
           >
-            <span
-              className={`text-xs shrink-0 ${
-                focusPerson.gender === "Male" ? "text-blue-500" : "text-pink-500"
-              }`}
-            >
-              {focusPerson.gender === "Male" ? "♂" : "♀"}
+            <span className={`text-xs shrink-0 ${genderMeta(focusPerson.gender).text500}`}>
+              {genderMeta(focusPerson.gender).symbol}
             </span>
             <span className="text-xs font-medium text-violet-800 flex-1 truncate">
               {focusPerson.name}
@@ -134,12 +131,8 @@ export default function RanjiSelector({ persons, focusPerson, onSelect, onClear 
                         : "hover:bg-slate-50 text-slate-700"
                     }`}
                   >
-                    <span
-                      className={`text-sm shrink-0 ${
-                        p.gender === "Male" ? "text-blue-400" : "text-pink-400"
-                      }`}
-                    >
-                      {p.gender === "Male" ? "♂" : "♀"}
+                    <span className={`text-sm shrink-0 ${genderMeta(p.gender).text400}`}>
+                      {genderMeta(p.gender).symbol}
                     </span>
                     <span className="text-sm flex-1 truncate">{p.name}</span>
                     {focusPerson?.id === p.id && (

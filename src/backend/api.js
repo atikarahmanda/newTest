@@ -1,5 +1,5 @@
 export const API_URL =
-  "https://script.google.com/macros/s/AKfycbzJDEO2VacthG6H5B26mI1f2rW6afFevek6ajCMUOK87idVDNMHfNHyXkhCBre2NtRK/exec"
+  "https://script.google.com/macros/s/AKfycbzHyqCYbK6Dp1uOlyCWKo4mQOokTDHeAIhopWKOockAgzo49EDx9OjrjervP36ew2tb/exec"
 // ==========================================================
 // AUTH PIN — dikirim ke backend di setiap request.
 // Backend (Apps Script) yang memvalidasi; frontend tidak menyimpan PIN asli.

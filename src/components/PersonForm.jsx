@@ -1,17 +1,22 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { buildRelMaps } from "../backend/treeBuilder";
+import { genderMeta, genderAllowsSpouse } from "../genderMeta";
+import PersonSearchSelect from "./PersonSearchSelect";
 
 export default function PersonForm({ person, onSave, onCancel, saving, persons = [], rels = [] }) {
   const isNew = !person;
 
   const [form, setForm] = useState(
-    person || { name: "", gender: "Male", birthDate: "", photoUrl: "", notes: "" }
+    person
+      ? { ...person, gender: person.gender ?? "", siblingOrder: person.siblingOrder ?? "" }
+      : { name: "", gender: "", birthDate: "", photoUrl: "", notes: "", siblingOrder: "" }
   );
 
   // Relationship — only used when creating a new person
   const [relType, setRelType] = useState("none"); // "none" | "child" | "spouse"
   const [parentIds, setParentIds] = useState([]);
   const [spouseId, setSpouseId] = useState("");
+  const [parentQuery, setParentQuery] = useState("");
 
   const set = (key, value) => {
     setForm((c) => ({ ...c, [key]: value }));
@@ -21,7 +26,7 @@ export default function PersonForm({ person, onSave, onCancel, saving, persons =
   const { spouseMap } = buildRelMaps(persons, rels);
 
   const spouseCandidates = persons.filter(
-    (p) => p.gender !== form.gender && !spouseMap.has(p.id)
+    (p) => genderAllowsSpouse(p.gender, form.gender) && !spouseMap.has(p.id)
   );
 
   const toggleParent = (id) => {
@@ -36,7 +41,14 @@ export default function PersonForm({ person, onSave, onCancel, saving, persons =
     setRelType(type);
     setParentIds([]);
     setSpouseId("");
+    setParentQuery("");
   };
+
+  const parentResults = useMemo(() => {
+    const q = parentQuery.trim().toLowerCase();
+    if (!q) return persons;
+    return persons.filter((p) => p.name.toLowerCase().includes(q));
+  }, [persons, parentQuery]);
 
   const handleSave = () => {
     const relData = isNew
@@ -71,38 +83,53 @@ export default function PersonForm({ person, onSave, onCancel, saving, persons =
         />
       </div>
 
-      {/* Gender */}
+      {/* Gender — opsional, boleh dikosongkan untuk generasi atas yang tidak pasti */}
       <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">Jenis Kelamin *</label>
+        <label className="block text-xs font-medium text-slate-500 mb-1">Jenis Kelamin</label>
         <div className="flex gap-2">
-          {["Male", "Female"].map((gender) => (
+          {[
+            ["Male", "♂ Laki-laki", "bg-blue-50 text-blue-700 ring-2 ring-blue-500"],
+            ["Female", "♀ Perempuan", "bg-pink-50 text-pink-700 ring-2 ring-pink-500"],
+            ["", "○ Tidak tahu", "bg-slate-100 text-slate-700 ring-2 ring-slate-400"],
+          ].map(([value, label, activeCls]) => (
             <button
-              key={gender}
+              key={value || "unknown"}
               type="button"
-              onClick={() => set("gender", gender)}
+              onClick={() => set("gender", value)}
               className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
-                form.gender === gender
-                  ? gender === "Male"
-                    ? "bg-blue-50 text-blue-700 ring-2 ring-blue-500"
-                    : "bg-pink-50 text-pink-700 ring-2 ring-pink-500"
-                  : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                form.gender === value ? activeCls : "bg-slate-50 text-slate-500 hover:bg-slate-100"
               }`}
             >
-              {gender === "Male" ? "♂ Laki-laki" : "♀ Perempuan"}
+              {label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Birth date */}
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">Tanggal Lahir</label>
-        <input
-          type="date"
-          className={inputCls}
-          value={form.birthDate}
-          onChange={(e) => set("birthDate", e.target.value)}
-        />
+      {/* Birth date + sibling order */}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-slate-500 mb-1">Tanggal Lahir</label>
+          <input
+            type="date"
+            className={inputCls}
+            value={form.birthDate}
+            onChange={(e) => set("birthDate", e.target.value)}
+          />
+        </div>
+        <div className="w-24">
+          <label className="block text-xs font-medium text-slate-500 mb-1">Urutan</label>
+          <input
+            type="number"
+            min="1"
+            inputMode="numeric"
+            className={inputCls}
+            value={form.siblingOrder}
+            onChange={(e) => set("siblingOrder", e.target.value)}
+            placeholder="—"
+            title="Urutan saudara dari yang tertua (1 = paling tua). Kosongkan jika tidak tahu."
+          />
+        </div>
       </div>
 
       {/* Photo URL */}
@@ -167,8 +194,17 @@ export default function PersonForm({ person, onSave, onCancel, saving, persons =
                 </span>
                 :
               </p>
+              <input
+                className={`${inputCls} mb-2`}
+                placeholder="Cari nama orang tua..."
+                value={parentQuery}
+                onChange={(e) => setParentQuery(e.target.value)}
+              />
               <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
-                {persons.map((p) => {
+                {parentResults.length === 0 && (
+                  <p className="text-xs text-slate-400 px-3 py-2">Tidak ada nama cocok.</p>
+                )}
+                {parentResults.map((p) => {
                   const selected = parentIds.includes(p.id);
                   const maxed = !selected && parentIds.length >= 2;
                   return (
@@ -202,8 +238,8 @@ export default function PersonForm({ person, onSave, onCancel, saving, persons =
                           </svg>
                         )}
                       </span>
-                      <span className={p.gender === "Male" ? "text-blue-400" : "text-pink-400"}>
-                        {p.gender === "Male" ? "♂" : "♀"}
+                      <span className={genderMeta(p.gender).text400}>
+                        {genderMeta(p.gender).symbol}
                       </span>
                       <span className="truncate">{p.name}</span>
                     </button>
@@ -225,18 +261,12 @@ export default function PersonForm({ person, onSave, onCancel, saving, persons =
                   yang belum memiliki pasangan.
                 </p>
               ) : (
-                <select
-                  className={inputCls}
+                <PersonSearchSelect
+                  persons={spouseCandidates}
                   value={spouseId}
-                  onChange={(e) => setSpouseId(e.target.value)}
-                >
-                  <option value="">Pilih pasangan...</option>
-                  {spouseCandidates.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.gender === "Male" ? "Laki-laki" : "Perempuan"})
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSpouseId}
+                  placeholder="Cari & pilih pasangan..."
+                />
               )}
               {spouseId === "" && spouseCandidates.length > 0 && (
                 <p className="text-xs text-amber-500 mt-2">Pilih pasangan.</p>

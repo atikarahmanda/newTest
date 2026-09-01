@@ -129,6 +129,7 @@ export default function App() {
         birthDate: form.birthDate,
         photoUrl: form.photoUrl,
         notes: form.notes,
+        siblingOrder: form.siblingOrder,
       });
 
       if (!createResult.success) {
@@ -206,6 +207,7 @@ export default function App() {
         birthDate: form.birthDate,
         photoUrl: form.photoUrl,
         notes: form.notes,
+        siblingOrder: form.siblingOrder,
       });
 
       if (result.success) {

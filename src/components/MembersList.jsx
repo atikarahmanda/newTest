@@ -1,4 +1,5 @@
 import { buildRelMaps } from "../backend/treeBuilder";
+import { genderMeta } from "../genderMeta";
 import { Icons } from "./Icons";
 
 export default function MembersList({ persons, rels, search, onClickPerson, onEdit, onDelete, role }) {
@@ -35,11 +36,7 @@ export default function MembersList({ persons, rels, search, onClickPerson, onEd
             onClick={() => onClickPerson(person)}
           >
             <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                person.gender === "Male"
-                  ? "bg-gradient-to-br from-blue-400 to-blue-600"
-                  : "bg-gradient-to-br from-pink-400 to-pink-600"
-              }`}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 ${genderMeta(person.gender).avatarGradient}`}
             >
               {person.photoUrl ? (
                 <img
@@ -55,7 +52,7 @@ export default function MembersList({ persons, rels, search, onClickPerson, onEd
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-800 truncate">{person.name}</p>
               <p className="text-xs text-slate-400 truncate">
-                {person.gender === "Male" ? "Laki-laki" : "Perempuan"}
+                {genderMeta(person.gender).label}
                 {spousePerson && ` • Pasangan: ${spousePerson.name}`}
                 {childCount > 0 && ` • ${childCount} anak`}
               </p>
