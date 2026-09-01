@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 
-import { apiGet, apiPost } from "./backend/api";
+import {
+  apiGet,
+  apiPost,
+  getAuthPin,
+  clearAuthPin,
+  demoteAuthPin,
+  AuthError,
+} from "./backend/api";
 import { buildRelMaps } from "./backend/treeBuilder";
 
 import Modal from "./components/Modal";
@@ -13,6 +20,7 @@ import { Icons } from "./components/Icons";
 import RanjiSelector from "./components/RanjiSelector";
 import AdminPinForm from "./components/AdminPinForm";
 import RelationshipManager from "./components/RelationshipManager";
+import UnlockGate from "./components/UnlockGate";
 
 export default function App() {
   const [persons, setPersons] = useState([]);
@@ -26,6 +34,24 @@ export default function App() {
   // Focused ranji view (null = full tree)
   const [focusPersonId, setFocusPersonId] = useState(null);
 
+  // Gate — buka aplikasi dengan PIN (diverifikasi backend).
+  // Sesi = ada PIN tersimpan di sessionStorage (dikelola src/backend/api.js).
+  const [unlocked, setUnlocked] = useState(() => !!getAuthPin());
+
+  const handleUnlock = (unlockedRole) => {
+    if (unlockedRole === "admin") setRole("admin");
+    setUnlocked(true);
+  };
+
+  const handleLock = () => {
+    clearAuthPin();
+    setRole("viewer");
+    setShowSettings(false);
+    setPersons([]);
+    setRels([]);
+    setUnlocked(false);
+  };
+
   // Role system
   const [role, setRole] = useState("viewer"); // "viewer" | "admin"
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -36,6 +62,7 @@ export default function App() {
   };
 
   const handleAdminLogout = () => {
+    demoteAuthPin();
     setRole("viewer");
     setShowSettings(false);
   };
@@ -67,6 +94,14 @@ export default function App() {
       }
     } catch (err) {
       console.error("fetchData error:", err);
+      if (err instanceof AuthError) {
+        clearAuthPin();
+        setRole("viewer");
+        setPersons([]);
+        setRels([]);
+        setUnlocked(false);
+        return;
+      }
       setError(`Gagal terhubung ke server: ${err.message}`);
     } finally {
       setLoading(false);
@@ -74,8 +109,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (unlocked) fetchData();
+  }, [fetchData, unlocked]);
 
   // ==========================================================
   // SAVE PERSON (with optional relationship)
@@ -313,6 +348,10 @@ export default function App() {
   // ==========================================================
   // RENDER
   // ==========================================================
+
+  if (!unlocked) {
+    return <UnlockGate onUnlock={handleUnlock} />;
+  }
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden relative">
@@ -599,6 +638,14 @@ export default function App() {
             className="w-full py-2.5 rounded-xl text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors"
           >
             {loading ? "Mengambil data..." : "Refresh Data"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLock}
+            className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            Kunci Aplikasi
           </button>
         </div>
       </Modal>
